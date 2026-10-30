@@ -1,19 +1,27 @@
 version: 0.2
 
+env:
+  variables:
+    HOME: "/root"
+    GOCACHE: "/tmp/go-cache"
+    GOPATH: "/go"
+
 phases:
   install:
     commands:
-      - echo "Installing dependencies..."
+      - echo "Setting up directories and dependencies..."
+      - mkdir -p /tmp/go-cache
+      - mkdir -p bin
       - go mod download
 
   pre_build:
     commands:
       - echo "Running tests..."
-      - go test ./... -v
+      - go test -v ./tests/...
 
   build:
     commands:
-      - echo "Building binary..."
+      - echo "Building Go binary..."
       - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/server main.go
 
 artifacts:
