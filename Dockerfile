@@ -1,13 +1,13 @@
 FROM golang:1.22-alpine AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
-RUN go mod download || true
+RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o order-management main.go
-FROM alpine:3.19
-RUN apk --no-cache add ca-certificates tzdata
-WORKDIR /app
-COPY --from=builder /app/order-management .
+RUN CGO_ENABLED=0 GOOS=linux go build -o /server main.go
+
+FROM alpine:latest
+WORKDIR /root/
+COPY --from=builder /server .
+COPY .env .
 EXPOSE 8080
-USER 1000:1000
-CMD ["./order-management"]
+CMD ["./server"]
