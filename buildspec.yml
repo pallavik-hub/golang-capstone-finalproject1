@@ -2,31 +2,31 @@ version: 0.2
 
 env:
   variables:
-    HOME: "/root"
-    GOCACHE: "/tmp/go-cache"
-    GOPATH: "/go"
+    AWS_DEFAULT_REGION: "us-east-1"
+    IMAGE_REPO_NAME: "golang-order-service"
+    ACCOUNT_ID: "123456789012" # replace with your AWS Account ID
 
 phases:
-  install:
-    commands:
-      - echo "Setting up directories and dependencies..."
-      - mkdir -p /tmp/go-cache
-      - mkdir -p bin
-      - go mod download
-
   pre_build:
     commands:
-      - echo "Running tests..."
-      - go test -v ./tests/...
-
+      - echo "Logging in to Amazon ECR..."
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - REPOSITORY_URI=$ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
   build:
     commands:
-      - echo "Building Go binary..."
-      - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/server main.go
+      - echo "Building Docker image on CodeBuild..."
+      - docker build -t $REPOSITORY_URI:latest .
+      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+  post_build:
+    commands:
+      - echo "Pushing Docker image to ECR..."
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo "Writing image definitions for ECS..."
+      - printf '[{"name":"order-service","imageUri":"%s"}]' $REPOSITORY_URI:latest > imagedefinitions.json
 
 artifacts:
   files:
-    - bin/server
-    - Procfile
-    - .env
-  discard-paths: no
+    - imagedefinitions.json
